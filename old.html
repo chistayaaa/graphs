@@ -2499,10 +2499,25 @@
 
   // Function to set correct dimensions
   function getDimensions() {
-    const width = document.documentElement.scrollWidth;
-    const height = document.documentElement.scrollHeight;
+    // const width = document.documentElement.scrollWidth;
+    // const height = document.documentElement.scrollHeight;
+
+      const body = document.body;
+    const html = document.documentElement;
+    
+   const width = Math.max(
+        body.scrollWidth, body.offsetWidth,
+        html.clientWidth, html.scrollWidth, html.offsetWidth
+    );
+    
+    const height = Math.max(
+        body.scrollHeight, body.offsetHeight,
+        html.clientHeight, html.scrollHeight, html.offsetHeight
+    );
+    
     console.log("getDimensions: width", width);
     console.log("getDimensions: height", height);
+    
     const id = window.location.href;
     return {
       width: width,
@@ -2529,8 +2544,9 @@
 
   // Send the height when we have width
   function messageHandler(event) {
+    console.log("messageHandler: width", event.data.width);
     if (event.data && event.data.type === "parentWidth") {
-      console.log("get parent evemt: width", event.data.width);
+      console.log("get parent event: width", event.data.width);
       handleWidth(event.data.width);
       sendData();
     }
