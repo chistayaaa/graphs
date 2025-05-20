@@ -2496,14 +2496,10 @@
       html.clientWidth, html.scrollWidth, html.offsetWidth
     );
 
-
-    console.log(body.clientHeight, 'clientHeight');
-        console.log(body.offsetHeight, 'offsetHeight');
-            console.log(body.scrollHeight, 'scrollHeight');
+    console.log(body.scrollHeight, 'scrollHeight');
     
     const height = Math.max(
-      body.scrollHeight, body.offsetHeight,
-      html.clientHeight, html.scrollHeight, html.offsetHeight
+      body.scrollHeight, body.offsetHeight
     );
     
     console.log("Accurate dimensions:", {width, height});
