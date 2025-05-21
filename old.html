@@ -2464,78 +2464,125 @@
 
 <script>
 (function () {
-  const iframeHost = new URLSearchParams(window.location.search).get("host");
-
-  // Debounce function to limit message frequency
-  function debounce(func, wait) {
-    let timeout;
-    return function (...args) {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(this, args), wait);
-    };
+  function safePostMessage(message) {
+    try {
+      window.parent.postMessage(message, "*");
+    } catch (e) {
+      console.error("PostMessage failed:", e);
+    }
   }
 
-  // Calculate the bottom position of the document
-  function getFullHeight() {
-    const baseBottom =
-      document.documentElement.getBoundingClientRect().bottom +
-      window.scrollY;
+  function handleWidth(width) {
+    if (typeof load === "function") {
+      load(width);
+    }
+  }
 
-    // We only use visual bottom as the truth, no reliance on scrollHeight
-    const fullHeight = baseBottom;
+  function getFullHeight() {
+    document.documentElement.style.height = 'auto';
+    document.body.style.height = 'auto';
+    
+    const baseBottom = document.documentElement.getBoundingClientRect().bottom + window.scrollY;
+    const scrollBottom = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight
+    );
+
+    const floatingBottom = Math.max(scrollBottom - baseBottom, 0);
+    const fullHeight = baseBottom + floatingBottom;
 
     return {
       baseBottom,
-      scrollBottom: fullHeight,
-      floatingBottom: 0,
+      scrollBottom,
+      floatingBottom,
       fullHeight,
     };
   }
 
-  // Get current width and height of the document
   function getDimensions() {
+    const { fullHeight } = getFullHeight();
+    const width = document.documentElement.scrollWidth;
+    const id = window.location.href;
+
     return {
-      width: document.documentElement.clientWidth,
-      height: getFullHeight().fullHeight,
+      width: width,
+      height: fullHeight,
+      aspectRatio: width / fullHeight,
+      id: id,
     };
   }
 
-  // Send current size to parent
   function sendData() {
-    if (!iframeHost) return;
     const dimensions = getDimensions();
     window.parent.postMessage(
       {
-        type: "resize",
-        width: dimensions.width,
-        height: dimensions.height,
+        type: "iframeData",
+        data: {
+          dimensions: dimensions,
+          ready: true,
+        },
       },
-      iframeHost
+      "*"
     );
   }
 
-  const sendHeightDebounced = debounce(sendData, 50);
+  function sendHeightDebounced() {
+    clearTimeout(sendHeightDebounced._t);
+    sendHeightDebounced._t = setTimeout(sendData, 100);
+  }
 
-  // Observe any DOM changes to trigger height recalculation
-  new MutationObserver(sendHeightDebounced).observe(document.body, {
+  function messageHandler(event) {
+    if (event.data && event.data.type === "parentWidth") {
+      handleWidth(event.data.width);
+      sendData();
+    }
+  }
+
+  function fixSvgSizes() {
+    document.querySelectorAll("svg").forEach((svg) => {
+      svg.style.width = "100%";
+      svg.style.maxWidth = "100%";
+      svg.removeAttribute("width");
+      svg.style.height = "auto";
+    });
+  }
+
+  function observeHoverActivity() {
+    let lastHoverTriggerTime = 0;
+
+    function maybeTriggerHeightUpdate() {
+      const now = Date.now();
+      if (now - lastHoverTriggerTime > 100) {
+        lastHoverTriggerTime = now;
+        sendHeightDebounced();
+      }
+    }
+
+    document.addEventListener("mousemove", maybeTriggerHeightUpdate);
+    document.addEventListener("mouseenter", maybeTriggerHeightUpdate, true);
+    document.addEventListener("mouseleave", maybeTriggerHeightUpdate, true);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    window.addEventListener("message", messageHandler);
+    safePostMessage({ type: "iframeReady" });
+
+    setTimeout(sendData, 700);
+
+    observeHoverActivity();
+  });
+
+  new MutationObserver(function () {
+    sendHeightDebounced();
+  }).observe(document.body, {
     childList: true,
     subtree: true,
     attributes: true,
     characterData: true,
   });
 
-  // Optional: listen to resize or font load events
-  window.addEventListener("resize", sendHeightDebounced);
-
-  // Respond to host request
-  window.addEventListener("message", (event) => {
-    if (event.data?.type === "iframeReady") {
-      sendData();
-    }
-  });
-
-  // Initial send on load
-  window.addEventListener("load", () => {
+  window.addEventListener("load", function () {
+    fixSvgSizes();
     sendData();
   });
 })();
