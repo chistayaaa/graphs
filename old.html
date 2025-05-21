@@ -2566,13 +2566,10 @@
     });
   }
 
-  // Hide vertical scroll + hide scroll bar
+  // Hide scroll bar
   function hideScrollBar() {
     const style = document.createElement('style');
     style.textContent = `
-      html, body {
-        overflow-y: hidden;
-      }
       body::-webkit-scrollbar {
         display: none;
       }
