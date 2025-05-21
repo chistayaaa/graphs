@@ -2566,6 +2566,24 @@
     });
   }
 
+  // Hide vertical scroll + hide scroll bar
+  function hideScrollBar() {
+    const style = document.createElement('style');
+    style.textContent = `
+      html, body {
+        overflow-y: hidden;
+      }
+      body::-webkit-scrollbar {
+        display: none;
+      }
+      body {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function observeHoverActivity() {
     let lastHoverTriggerTime = 0;
 
@@ -2611,6 +2629,7 @@
 
   window.addEventListener("load", function () {
     fixSvgSizes();
+    hideScrollBar();
     sendData();
   });
 })();
