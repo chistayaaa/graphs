@@ -2518,13 +2518,14 @@
   }
 
   function getDimensions(options = {}) {
-    const { fullHeight } = getFullHeight(options);
+    const { fullHeight, baseBottom } = getFullHeight(options);
     const width = document.documentElement.scrollWidth;
     const id = window.location.href;
 
     return {
       width: width,
       height: fullHeight,
+      baseHeight: baseBottom,
       aspectRatio: width / fullHeight,
       id: id,
     };
