@@ -2551,6 +2551,7 @@
   }
 
   function messageHandler(event) {
+    console.log('messageHandler: event type:', event.data.type)
     if (event.data && event.data.type === "parentWidth") {
       handleWidth(event.data.width);
       sendData();
