@@ -2463,7 +2463,11 @@
 
 
 <script>
+
 (function () {
+  let heightCache = 0;
+  let debounceTimer;
+
   function safePostMessage(message) {
     try {
       window.parent.postMessage(message, "*");
@@ -2472,59 +2476,77 @@
     }
   }
 
-  function sendHeight() {
-  // reset styles
+  function getFullHeight() {
     document.documentElement.style.height = "auto";
     document.body.style.height = "auto";
 
-    const visualBottom = document.documentElement.getBoundingClientRect().bottom + window.scrollY;
+    const baseBottom = document.documentElement.getBoundingClientRect().bottom + window.scrollY;
+
+    const floatingElements = Array.from(document.querySelectorAll('*')).filter((el) => {
+      const style = window.getComputedStyle(el);
+      return (
+        (style.position === 'absolute' || style.position === 'fixed') &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        parseFloat(style.opacity) > 0
+      );
+    });
+
+    const floatingBottom = Math.max(
+      0,
+      ...floatingElements.map((el) => el.getBoundingClientRect().bottom + window.scrollY)
+    );
+
     const scrollBottom = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
 
-
-
-    const height = Math.max(visualBottom, scrollBottom);
-
-
-    console.log(`sendHeight - Height measurement: 
-      visualBottom: ${visualBottom}px, 
+    console.log(`getFullHeight: 
+      baseBottom: ${baseBottom}px, 
       scrollBottom: ${scrollBottom}px, 
-      height: ${height}px`);
+      floatingBottom: ${floatingBottom}px`);
 
-    safePostMessage({
-      type: "setHeight",
-      height,
-    });
+    return Math.max(baseBottom, scrollBottom, floatingBottom);
+  }
+
+  function sendHeightDebounced() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const newHeight = getFullHeight();
+
+      if (Math.abs(newHeight - heightCache) > 1) {
+        heightCache = newHeight;
+        safePostMessage({
+          type: "setHeight",
+          height: newHeight,
+        });
+      }
+    }, 100);
   }
 
   function getDimensions() {
     const width = document.documentElement.scrollWidth;
-    const visualBottom = document.documentElement.getBoundingClientRect().bottom + window.scrollY;
-    const height = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, visualBottom);
+    const height = getFullHeight();
 
 
-    console.log(`getDimensionst: 
+    console.log(`getDimensions: 
       width: ${width}px, 
-      visualBottom: ${visualBottom}px, 
       height: ${height}px`);
 
+
     return {
-      width: width,
-      height: height,
+      width,
+      height,
       aspectRatio: width / height,
       id: window.location.href,
     };
   }
 
-  function sendData() {
+  function sendInitialData() {
     const dimensions = getDimensions();
-
-        console.log(`sendData: 
-      dimensions: ${dimensions}`);
-
+    heightCache = dimensions.height;
     safePostMessage({
       type: "iframeData",
       data: {
-        dimensions: dimensions,
+        dimensions,
         ready: true,
       },
     });
@@ -2532,14 +2554,10 @@
 
   function messageHandler(event) {
     if (event.data && event.data.type === "parentWidth") {
-      console.log(`parentWidth: 
-      data: ${event.data}`);
-
-      sendData();
+      sendInitialData();
     }
   }
 
-  // SVG fix
   function fixSvgSizes() {
     document.querySelectorAll("svg").forEach((svg) => {
       svg.style.width = "100%";
@@ -2553,29 +2571,26 @@
     window.addEventListener("message", messageHandler);
     safePostMessage({ type: "iframeReady" });
 
-    // initial height
     setTimeout(() => {
       fixSvgSizes();
-      sendData();
+      sendInitialData();
     }, 500);
 
-    // MutationObserver 
-    new MutationObserver(sendHeight).observe(document.body, {
+    new MutationObserver(sendHeightDebounced).observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
       characterData: true,
     });
 
-    // ResizeObserver 
-    const resizeObserver = new ResizeObserver(sendHeight);
+    const resizeObserver = new ResizeObserver(sendHeightDebounced);
     resizeObserver.observe(document.body);
     resizeObserver.observe(document.documentElement);
   });
 
   window.addEventListener("load", () => {
     fixSvgSizes();
-    sendData();
+    sendHeightDebounced();
   });
 })();
 </script>
