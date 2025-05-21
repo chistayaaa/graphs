@@ -2489,6 +2489,13 @@
     const floatingBottom = Math.max(scrollBottom - baseBottom, 0);
     const fullHeight = baseBottom + floatingBottom;
 
+    console.log(`<------- getFullHeight called`);
+    console.log(`baseBottom: ${baseBottom}`);
+    console.log(`scrollBottom: ${scrollBottom}`);
+    console.log(`floatingBottom: ${floatingBottom}`);
+    console.log(`fullHeight: ${fullHeight}`);
+    console.log(`getFullHeight ------->`);
+
     return {
       baseBottom,
       scrollBottom,
@@ -2501,6 +2508,11 @@
     const { fullHeight } = getFullHeight();
     const width = document.documentElement.scrollWidth;
     const id = window.location.href;
+    
+    console.log(`<------- getDimensions called`);
+    console.log(`width: ${width}`);
+    console.log(`fullHeight: ${fullHeight}`);
+    console.log(`getDimensions ------->`);
 
     return {
       width: width,
@@ -2512,6 +2524,11 @@
 
   function sendData() {
     const dimensions = getDimensions();
+
+    console.log(`<------- sendData called`);
+    console.log(`dimensions: ${dimensions}`);
+    console.log(`sendData ------->`);
+
     window.parent.postMessage(
       {
         type: "iframeData",
@@ -2525,8 +2542,10 @@
   }
 
   function sendHeightDebounced() {
+    console.log(`<------- sendHeightDebounced called`);
     clearTimeout(sendHeightDebounced._t);
     sendHeightDebounced._t = setTimeout(sendData, 100);
+    console.log(`sendHeightDebounced ------->`);
   }
 
   function messageHandler(event) {
@@ -2546,6 +2565,7 @@
   }
 
   function observeHoverActivity() {
+    console.log(`<------- observeHoverActivity called`);
     let lastHoverTriggerTime = 0;
 
     function maybeTriggerHeightUpdate() {
@@ -2555,7 +2575,6 @@
         sendHeightDebounced();
       }
     }
-
     document.addEventListener("mousemove", maybeTriggerHeightUpdate);
     document.addEventListener("mouseenter", maybeTriggerHeightUpdate, true);
     document.addEventListener("mouseleave", maybeTriggerHeightUpdate, true);
