@@ -2579,7 +2579,9 @@
     document.addEventListener("mousemove", maybeTriggerHeightUpdate);
     document.addEventListener("mouseenter", maybeTriggerHeightUpdate, true);
     document.addEventListener("mouseleave", () => {
-      sendData({ forceBase: true }); // Send only base height when tooltip disappears
+        setTimeout(() => {
+            sendData({ forceBase: true });
+        }, 300) // Send only base height when tooltip disappears
     }, true);
   }
 
@@ -2589,6 +2591,12 @@
 
     setTimeout(sendData, 700);
     observeHoverActivity();
+  });
+
+  document.body.addEventListener("mouseout", (event) => {
+    if (!event.relatedTarget || !document.body.contains(event.relatedTarget)) {
+      sendData({ forceBase: true });
+    }
   });
 
   new MutationObserver(function () {
