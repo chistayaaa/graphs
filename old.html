@@ -2570,10 +2570,10 @@
   function hideScrollBar() {
     const style = document.createElement('style');
     style.textContent = `
-      body::-webkit-scrollbar {
+      ::-webkit-scrollbar {
         display: none;
       }
-      body {
+      * {
         scrollbar-width: none;
         -ms-overflow-style: none;
       }
