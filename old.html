@@ -2465,9 +2465,6 @@
 <script>
 
 (function () {
-  let heightCache = 0;
-  let debounceTimer;
-
   function safePostMessage(message) {
     try {
       window.parent.postMessage(message, "*");
@@ -2476,85 +2473,66 @@
     }
   }
 
+  function handleWidth(width) {
+    if (typeof load === "function") {
+      load(width);
+    }
+  }
+
   function getFullHeight() {
-    document.documentElement.style.height = "auto";
-    document.body.style.height = "auto";
-
     const baseBottom = document.documentElement.getBoundingClientRect().bottom + window.scrollY;
-
-    const floatingElements = Array.from(document.querySelectorAll('*')).filter((el) => {
-      const style = window.getComputedStyle(el);
-      return (
-        (style.position === 'absolute' || style.position === 'fixed') &&
-        style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        parseFloat(style.opacity) > 0
-      );
-    });
-
-    const floatingBottom = Math.max(
-      0,
-      ...floatingElements.map((el) => el.getBoundingClientRect().bottom + window.scrollY)
+    const scrollBottom = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight
     );
 
-    const scrollBottom = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
-
-    console.log(`getFullHeight: 
-      baseBottom: ${baseBottom}px, 
-      scrollBottom: ${scrollBottom}px, 
-      floatingBottom: ${floatingBottom}px`);
-
-    return Math.max(baseBottom, scrollBottom, floatingBottom);
-  }
-
-  function sendHeightDebounced() {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      const newHeight = getFullHeight();
-
-      if (Math.abs(newHeight - heightCache) > 1) {
-        heightCache = newHeight;
-        safePostMessage({
-          type: "setHeight",
-          height: newHeight,
-        });
-      }
-    }, 100);
-  }
-
-  function getDimensions() {
-    const width = document.documentElement.scrollWidth;
-    const height = getFullHeight();
-
-
-    console.log(`getDimensions: 
-      width: ${width}px, 
-      height: ${height}px`);
-
+    const floatingBottom = Math.max(scrollBottom - baseBottom, 0);
+    const fullHeight = baseBottom + floatingBottom;
 
     return {
-      width,
-      height,
-      aspectRatio: width / height,
-      id: window.location.href,
+      baseBottom,
+      scrollBottom,
+      floatingBottom,
+      fullHeight,
     };
   }
 
-  function sendInitialData() {
+  function getDimensions() {
+    const { fullHeight } = getFullHeight();
+    const width = document.documentElement.scrollWidth;
+    const id = window.location.href;
+
+    return {
+      width: width,
+      height: fullHeight,
+      aspectRatio: width / fullHeight,
+      id: id,
+    };
+  }
+
+  function sendData() {
     const dimensions = getDimensions();
-    heightCache = dimensions.height;
-    safePostMessage({
-      type: "iframeData",
-      data: {
-        dimensions,
-        ready: true,
+    window.parent.postMessage(
+      {
+        type: "iframeData",
+        data: {
+          dimensions: dimensions,
+          ready: true,
+        },
       },
-    });
+      "*"
+    );
+  }
+
+  function sendHeightDebounced() {
+    clearTimeout(sendHeightDebounced._t);
+    sendHeightDebounced._t = setTimeout(sendData, 100);
   }
 
   function messageHandler(event) {
     if (event.data && event.data.type === "parentWidth") {
-      sendInitialData();
+      handleWidth(event.data.width);
+      sendData();
     }
   }
 
@@ -2567,30 +2545,42 @@
     });
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
+  function observeHoverActivity() {
+    let lastHoverTriggerTime = 0;
+
+    function maybeTriggerHeightUpdate() {
+      const now = Date.now();
+      if (now - lastHoverTriggerTime > 100) {
+        lastHoverTriggerTime = now;
+        sendHeightDebounced();
+      }
+    }
+
+    document.addEventListener("mousemove", maybeTriggerHeightUpdate);
+    document.addEventListener("mouseenter", maybeTriggerHeightUpdate, true);
+    document.addEventListener("mouseleave", maybeTriggerHeightUpdate, true);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
     window.addEventListener("message", messageHandler);
     safePostMessage({ type: "iframeReady" });
 
-    setTimeout(() => {
-      fixSvgSizes();
-      sendInitialData();
-    }, 500);
-
-    new MutationObserver(sendHeightDebounced).observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      characterData: true,
-    });
-
-    const resizeObserver = new ResizeObserver(sendHeightDebounced);
-    resizeObserver.observe(document.body);
-    resizeObserver.observe(document.documentElement);
+    setTimeout(sendData, 700);
+    observeHoverActivity();
   });
 
-  window.addEventListener("load", () => {
-    fixSvgSizes();
+  new MutationObserver(function () {
     sendHeightDebounced();
+  }).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    characterData: true,
+  });
+
+  window.addEventListener("load", function () {
+    fixSvgSizes();
+    sendData();
   });
 })();
 </script>
