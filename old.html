@@ -2463,11 +2463,7 @@
 
 
 <script>
-(function() {
-  // initialization
-  let isInitialMeasurement = true;
-  let lastSentHeight = 0;
-  
+(function () {
   function safePostMessage(message) {
     try {
       window.parent.postMessage(message, "*");
@@ -2476,101 +2472,111 @@
     }
   }
 
-  function getAccurateHeight() {
-    // For the correct height measurement -> initially take the body height
-    const bodyHeight = document.body.scrollHeight;
-    const docHeight = document.documentElement.scrollHeight;
-    
-    // take max
-    const height = Math.max(bodyHeight, docHeight);
-    
-    console.log(`Height measurement: 
-      Body: ${bodyHeight}px, 
-      Document: ${docHeight}px, 
-      Using: ${height}px`);
-    
-    return height;
-  }
-
   function sendHeight() {
-    const currentHeight = getAccurateHeight();
-    
-    // Send if there is a change
-    if (Math.abs(currentHeight - lastSentHeight) > 5) { // 5px threshold
-      console.log(`Height changed: currentHeight`, currentHeight);
-      safePostMessage({
-        type: "setHeight",
-        height: currentHeight
-      });
-      lastSentHeight = currentHeight;
+  // reset styles
+    document.documentElement.style.height = "auto";
+    document.body.style.height = "auto";
+
+    const visualBottom = document.documentElement.getBoundingClientRect().bottom + window.scrollY;
+    const scrollBottom = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+
+
+
+    const height = Math.max(visualBottom, scrollBottom);
+
+
+    console.log(`sendHeight - Height measurement: 
+      visualBottom: ${visualBottom}px, 
+      scrollBottom: ${scrollBottom}px, 
+      height: ${height}px`);
+
+    safePostMessage({
+      type: "setHeight",
+      height,
+    });
+  }
+
+  function getDimensions() {
+    const width = document.documentElement.scrollWidth;
+    const visualBottom = document.documentElement.getBoundingClientRect().bottom + window.scrollY;
+    const height = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, visualBottom);
+
+
+    console.log(`getDimensionst: 
+      width: ${width}px, 
+      visualBottom: ${visualBottom}px, 
+      height: ${height}px`);
+
+    return {
+      width: width,
+      height: height,
+      aspectRatio: width / height,
+      id: window.location.href,
+    };
+  }
+
+  function sendData() {
+    const dimensions = getDimensions();
+
+        console.log(`sendData: 
+      dimensions: ${dimensions}`);
+
+    safePostMessage({
+      type: "iframeData",
+      data: {
+        dimensions: dimensions,
+        ready: true,
+      },
+    });
+  }
+
+  function messageHandler(event) {
+    if (event.data && event.data.type === "parentWidth") {
+      console.log(`parentWidth: 
+      data: ${event.data}`);
+
+      sendData();
     }
   }
 
-  const observer = new MutationObserver(function(mutations) {
-    // check updates in dom
-    let needsUpdate = mutations.some(mutation => {
-      if (mutation.type === 'childList') return true;
-      if (mutation.type === 'attributes') {
-        return mutation.attributeName === 'style' || 
-               mutation.attributeName === 'class';
-      }
-      return false;
+  // SVG fix
+  function fixSvgSizes() {
+    document.querySelectorAll("svg").forEach((svg) => {
+      svg.style.width = "100%";
+      svg.style.maxWidth = "100%";
+      svg.removeAttribute("width");
+      svg.style.height = "auto";
     });
+  }
 
-      console.log(`Observer triggered: ${needsUpdate}`);
-    
-    if (needsUpdate) {
-      sendHeight();
-    }
-  });
+  document.addEventListener("DOMContentLoaded", () => {
+    window.addEventListener("message", messageHandler);
+    safePostMessage({ type: "iframeReady" });
 
-  function initialize() {
-    observer.observe(document, {
+    // initial height
+    setTimeout(() => {
+      fixSvgSizes();
+      sendData();
+    }, 500);
+
+    // MutationObserver 
+    new MutationObserver(sendHeight).observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['style', 'class']
+      characterData: true,
     });
 
-    // Listen parent messages
-    window.addEventListener("message", function(event) {
-      if (event.data?.type === "parentWidth") {
-         console.log(`Message from parent:' ${event.data}`);
-        // initially send height of the body
-        if (isInitialMeasurement) {
-          const bodyHeight = document.body.scrollHeight;
-          safePostMessage({
-            type: "setHeight",
-            height: bodyHeight
-          });
-          lastSentHeight = bodyHeight;
-          isInitialMeasurement = false;
-        }
-        
-        setTimeout(sendHeight, 100);
-      }
-    });
+    // ResizeObserver 
+    const resizeObserver = new ResizeObserver(sendHeight);
+    resizeObserver.observe(document.body);
+    resizeObserver.observe(document.documentElement);
+  });
 
-    // First message to parent
-    safePostMessage({ type: "iframeReady" });
-    
-    setTimeout(() => {
-      sendHeight();
-      isInitialMeasurement = false;
-    }, 500);
-    
-    setInterval(sendHeight, 2000);
-  }
-
-  // Initialize when DOM is ready
-  if (document.readyState === "complete") {
-    initialize();
-  } else {
-    document.addEventListener("DOMContentLoaded", initialize);
-    window.addEventListener("load", () => {
-      setTimeout(sendHeight, 1000);
-    });
-  }
+  window.addEventListener("load", () => {
+    fixSvgSizes();
+    sendData();
+  });
 })();
 </script>
   </body>
