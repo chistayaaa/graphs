@@ -2478,25 +2478,36 @@
     }
   }
 
-  function getFullHeight() {
-    // document.documentElement.style.height = 'auto';
-    // document.body.style.height = 'auto';
-    
+  function getFullHeight({ forceBase = false } = {}) {
     const baseBottom = document.documentElement.getBoundingClientRect().bottom + window.scrollY;
+
+    if (forceBase) {
+      return {
+        baseBottom,
+        scrollBottom: baseBottom,
+        floatingBottom: 0,
+        fullHeight: baseBottom,
+      };
+    }
+
     const scrollBottom = Math.max(
       document.documentElement.scrollHeight,
       document.body.scrollHeight
     );
 
-    const floatingBottom = Math.max(scrollBottom - baseBottom, 0);
-    const fullHeight = baseBottom + floatingBottom;
+    // Approximate floating elements (like tooltips)
+    const floatingElems = [...document.querySelectorAll("*")].filter((el) => {
+      const style = getComputedStyle(el);
+      return style.position === "absolute" || style.position === "fixed";
+    });
 
-     console.log('getFullHeight')
-     console.log('baseBottom', baseBottom)
-     console.log('scrollBottom', scrollBottom)
-     console.log('floatingBottom', floatingBottom)
-     console.log('fullHeight', fullHeight)
+    const floatingBottom = floatingElems.reduce((max, el) => {
+      const rect = el.getBoundingClientRect();
+      const bottom = rect.bottom + window.scrollY;
+      return Math.max(max, bottom);
+    }, 0) - baseBottom;
 
+    const fullHeight = Math.max(baseBottom + floatingBottom, scrollBottom);
 
     return {
       baseBottom,
@@ -2506,8 +2517,8 @@
     };
   }
 
-  function getDimensions() {
-    const { fullHeight } = getFullHeight();
+  function getDimensions(options = {}) {
+    const { fullHeight } = getFullHeight(options);
     const width = document.documentElement.scrollWidth;
     const id = window.location.href;
 
@@ -2519,8 +2530,8 @@
     };
   }
 
-  function sendData() {
-    const dimensions = getDimensions();
+  function sendData(options = {}) {
+    const dimensions = getDimensions(options);
     window.parent.postMessage(
       {
         type: "iframeData",
@@ -2535,7 +2546,7 @@
 
   function sendHeightDebounced() {
     clearTimeout(sendHeightDebounced._t);
-    sendHeightDebounced._t = setTimeout(sendData, 100);
+    sendHeightDebounced._t = setTimeout(() => sendData(), 100);
   }
 
   function messageHandler(event) {
@@ -2567,7 +2578,9 @@
 
     document.addEventListener("mousemove", maybeTriggerHeightUpdate);
     document.addEventListener("mouseenter", maybeTriggerHeightUpdate, true);
-    document.addEventListener("mouseleave", maybeTriggerHeightUpdate, true);
+    document.addEventListener("mouseleave", () => {
+      sendData({ forceBase: true }); // Send only base height when tooltip disappears
+    }, true);
   }
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -2575,7 +2588,6 @@
     safePostMessage({ type: "iframeReady" });
 
     setTimeout(sendData, 700);
-
     observeHoverActivity();
   });
 
